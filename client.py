@@ -3,7 +3,7 @@ import os
 import subprocess
 
 s = socket.socket()
-host = socket.gethostname("ec2-18-217-85-9.us-east-2.compute.amazonaws.com")
+host = socket.gethostbyname("ec2-18-217-85-9.us-east-2.compute.amazonaws.com")
 port = 9999
 
 s.connect( (host, port) )
