@@ -143,5 +143,6 @@ def work():
 
 
 
+print("Welcome")
 create_worker()
 create_job()
