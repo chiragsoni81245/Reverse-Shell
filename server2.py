@@ -109,10 +109,10 @@ def input_command():
 		elif cmd.split()[0]=="select":
 			index = int(cmd.split()[1]) - 1
 			print("You are now connected to: {}".format( all_address[index][0] ) )
-                        send_command( all_conn[index] )
-                elif cmd=="clear":
-                        os.system("clear")
-                else:
+			send_command( all_conn[index] )
+		elif cmd=="clear":
+				os.system("clear")
+		else:
 			print("Command Not Recognised! ")
 
 
