@@ -3,6 +3,7 @@ import sys
 import threading
 import time
 from queue import Queue
+import os
 
 NUMBER_OF_THREADS = 2
 
@@ -100,18 +101,20 @@ def input_command():
 					continue
 
 
-				clients.append( "{}: IP={} PORT={}".format( i+1, all_address[i][0], all_address[i][1] ) )
+				clients.append( "\n{}: IP={} PORT={}\n".format( i+1, all_address[i][0], all_address[i][1] ) )
 
-			print("----Clients----")
+			print("\n----Clients----")
 			print(*clients, sep="\n")
 
 
 		elif cmd.split()[0]=="select":
 			index = int(cmd.split()[1]) - 1
-			print("You are now connected to: {}".format( all_address[index][0] ) )
+			print("\nYou are now connected to: {}\n".format( all_address[index][0] ) )
 			send_command( all_conn[index] )
 		elif cmd=="clear":
 				os.system("clear")
+		elif cmd=="quit":
+			break
 		else:
 			print("Command Not Recognised! ")
 
