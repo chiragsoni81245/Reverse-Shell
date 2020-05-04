@@ -20,7 +20,7 @@ def create_socket():
 	global port
 	global s
 	try:
-		host = "" 
+		host = "127.0.0.1" 
 		port = 9999
 		s = socket.socket()
 		
@@ -114,7 +114,7 @@ def input_command():
 		elif cmd=="clear":
 				os.system("clear")
 		elif cmd=="quit":
-			break
+			exit(0)
 		else:
 			print("Command Not Recognised! ")
 

