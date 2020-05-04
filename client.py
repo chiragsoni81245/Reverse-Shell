@@ -3,7 +3,7 @@ import os
 import subprocess
 
 s = socket.socket()
-host = socket.gethostbyname("localhost")
+host = "127.0.0.2"
 port = 9999
 
 system = ["windows","linux"][os.name!="nt"]
