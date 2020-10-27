@@ -119,7 +119,7 @@ class Server:
 		self.accept_connections()
 
 
-def RecvFile(conn,chunk_size=20480):
+def RecvFile(conn,chunk_size=404800):
 	# Recv Size of File
 	response = conn.recv(chunk_size)
 	file_size = b''
@@ -163,7 +163,7 @@ def RecvFile(conn,chunk_size=20480):
 		print("File is Empty")
 		return False
 
-def SendFile(conn,file,chunk_size=20480):
+def SendFile(conn,file,chunk_size=404800):
 	data = file.read(chunk_size)
 		
 	total_size = os.path.getsize(file.name)
