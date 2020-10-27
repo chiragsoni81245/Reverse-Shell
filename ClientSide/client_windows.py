@@ -4,6 +4,7 @@ import os
 import subprocess
 import re
 from datetime import datetime
+import math
 
 try:
     # PyAudio : Python Bindings for PortAudio.
@@ -1209,7 +1210,7 @@ def Record(filename,duration):
 
 class Client:
 
-    def __init__(self,host="18.217.85.9",port=2307):
+    def __init__(self,host="127.0.0.1",port=2307):
         self.socket_obj = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_obj.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.host = host
@@ -1218,6 +1219,96 @@ class Client:
     def connect(self):
         self.socket_obj.connect(( self.host, self.port ))
         print("Connected")
+
+
+def RecvFile(conn,chunk_size=20480):
+    # Recv Size of File
+    response = conn.recv(chunk_size)
+    file_size = b''
+    if str(response,"utf-8")[-1]!="C":
+        while str(response,"utf-8")[-1]!="C":
+            file_size += response
+            response = conn.recv(chunk_size)
+    else:
+        file_size += response
+
+    file_size = str(file_size,"utf-8")[:-1:]
+    if file_size.isnumeric():
+        file_size = int(file_size) 
+        conn.send( str.encode("OK") )
+    else:
+        return False
+
+    print("Receiving a file of {:.2f} MB\n".format( (file_size/1024)/1024 ) )
+
+    data_received = b''
+    if file_size:
+        remaining_data = file_size - len(data_received) 
+        response = conn.recv( chunk_size if chunk_size < remaining_data else remaining_data )
+        while response:
+            data_received += response
+            conn.send( str.encode("OK","utf-8") )
+            total_width = 20
+            prercentage_completed = ( len(data_received)/file_size)*100
+            completed_width = math.ceil( (total_width*prercentage_completed)/100 )
+            remaining_width = total_width - completed_width
+            if len(data_received)!=file_size:
+                print( "|" + "\033[44m \033[0m"*completed_width + " "*remaining_width + "| {0:.2f}%".format(prercentage_completed), end="\r" )
+            else:
+                print( "|" + "\033[44m \033[0m"*completed_width + " "*remaining_width + "| {}%".format(prercentage_completed) )
+                print("Download Complete.")
+                return data_received
+
+            remaining_data = file_size - len(data_received) 
+            response = conn.recv( chunk_size if chunk_size < remaining_data else remaining_data )
+    else:
+        print("File is Empty")
+        return False
+
+def SendFile(conn,file,chunk_size=20480):
+    data = file.read(chunk_size)
+    if not data:
+        print("File is Empty")
+        return False
+        
+    total_size = os.path.getsize(file.name)
+    data_sended = 0
+    print("Sending a {:0.2f} MB file...\n".format( (total_size/1024)/1024 ) )
+    
+    conn.send( str.encode( str(total_size)+"C", "utf-8" ) ) # Send Size of File to Client
+    try:
+        response = conn.recv(2)
+        if str(response,"utf-8")!="OK":
+            print("Something Went Wrong on Clint Side!")
+            return False
+    except Exception as msg:
+        print(msg)
+        return False
+
+    while data:
+        conn.send( data )
+        reponse = conn.recv(2)
+        try:
+            if str(reponse,"utf-8")=="OK":
+                data_sended += len(data)
+                data = file.read(chunk_size)
+                total_width = 20
+                prercentage_completed = (data_sended/total_size)*100
+                completed_width = math.ceil( (total_width*prercentage_completed)/100 )
+                remaining_width = total_width - completed_width
+                if data_sended!=total_size:
+                    print( "|" + "\033[44m \033[0m"*completed_width + " "*remaining_width + "| {0:.2f}%".format(prercentage_completed), end="\r" )
+                else:
+                    print( "|" + "\033[44m \033[0m"*completed_width + " "*remaining_width + "| {}%".format(prercentage_completed) )
+                    print("Upload Complete.")
+                    return True
+            else:
+                print("Something Went Wrong on Clint Side!")
+                return False
+        except Exception as msg:
+            print(msg)
+            return False
+
 
 
 if __name__=="__main__":
@@ -1236,13 +1327,12 @@ if __name__=="__main__":
                 filename = re.fullmatch("recv_file ([\w.]+)",command).group(1)
                 if not os.path.exists('files'):
                     os.makedirs('files')
-                client.socket_obj.send( str.encode("receiving","utf-8") )
-                
-                # create a new file and write recived data init
-                with open("files/{}".format(filename),"wb") as file:
-                    data_recv = client.socket_obj.recv(20480)
-                    file.write( data_recv )
-                    client.socket_obj.send( str.encode("received".format(filename)) )
+                data = RecvFile(client.socket_obj)
+
+                if data:
+                    # create a new file and write recived data init
+                    with open("files/{}".format(filename),"wb") as file:
+                        file.write( data )
 
             # For Sending Files
             elif re.fullmatch("send_file [\w.]+",command)!=None:
@@ -1250,9 +1340,7 @@ if __name__=="__main__":
                 if os.path.isfile( os.getcwd()+ "/" +filename): #Check if file exists or not
                     client.socket_obj.send( str.encode( "file_found|{}".format( os.getcwd()+"> " ), "utf-8") )
                     with open( os.getcwd()+ "/" +filename, "rb" ) as file:
-                        data = file.read()
-                        print("Sending Data....")
-                        client.socket_obj.send( data )
+                        SendFile(client.socket_obj,file)
                 else:
                     client.socket_obj.send( str.encode( "file_not_found|{}".format( os.getcwd()+"> " ), "utf-8") )
 

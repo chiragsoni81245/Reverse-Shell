@@ -3,10 +3,10 @@
 block_cipher = None
 
 
-a = Analysis(['client.py'],
+a = Analysis(['client_windows.py'],
              pathex=['/home/chirag/Documents/reverse_shell/ClientSide'],
              binaries=[],
-             datas=[ ("./_portaudio.cp38-win32.pyd",".") ],
+             datas=[ ("./_portaudio.cp38-win32.pyd","."), ("./_portaudio.cp39-win_amd64.pyd",".") ],
              hiddenimports=[],
              hookspath=[],
              runtime_hooks=[],

