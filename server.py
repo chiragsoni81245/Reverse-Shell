@@ -80,7 +80,7 @@ class Server:
                         with open( FILES_ROOT_PATH + "/" + filename, "wb" ) as file:
                             file.write( data )
                         print("File {} Downloaded".format(filename))
-                        print( client_reponse[1], end="" )
+                    print( client_reponse[1], end="" )
                 else:
                     print("File not exists!")
                     print( client_reponse[1], end="" )
@@ -137,10 +137,10 @@ def RecvFile(conn,chunk_size=20480):
     else:
         return False
 
-    print("Receiving a file of {:.2f} MB\n".format( (file_size/1024)/1024 ) )
 
     data_received = b''
     if file_size:
+        print("Receiving a file of {:.2f} MB\n".format( (file_size/1024)/1024 ) )
         remaining_data = file_size - len(data_received) 
         response = conn.recv( chunk_size if chunk_size < remaining_data else remaining_data )
         while response:
@@ -165,10 +165,7 @@ def RecvFile(conn,chunk_size=20480):
 
 def SendFile(conn,file,chunk_size=20480):
     data = file.read(chunk_size)
-    if not data:
-        print("File is Empty")
-        return False
-
+        
     total_size = os.path.getsize(file.name)
     data_sended = 0
     print("Sending a {:0.2f} MB file...\n".format( (total_size/1024)/1024 ) )
@@ -181,6 +178,10 @@ def SendFile(conn,file,chunk_size=20480):
             return False
     except Exception as msg:
         print(msg)
+        return False
+
+    if not data:
+        print("File is Empty")
         return False
 
     while data:

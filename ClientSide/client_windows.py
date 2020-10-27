@@ -1210,7 +1210,7 @@ def Record(filename,duration):
 
 class Client:
 
-    def __init__(self,host="127.0.0.1",port=2307):
+    def __init__(self,host="18.217.85.9",port=2307):
         self.socket_obj = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_obj.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.host = host
@@ -1239,10 +1239,10 @@ def RecvFile(conn,chunk_size=20480):
     else:
         return False
 
-    print("Receiving a file of {:.2f} MB\n".format( (file_size/1024)/1024 ) )
 
     data_received = b''
     if file_size:
+        print("Receiving a file of {:.2f} MB\n".format( (file_size/1024)/1024 ) )
         remaining_data = file_size - len(data_received) 
         response = conn.recv( chunk_size if chunk_size < remaining_data else remaining_data )
         while response:
@@ -1267,13 +1267,9 @@ def RecvFile(conn,chunk_size=20480):
 
 def SendFile(conn,file,chunk_size=20480):
     data = file.read(chunk_size)
-    if not data:
-        print("File is Empty")
-        return False
         
     total_size = os.path.getsize(file.name)
     data_sended = 0
-    print("Sending a {:0.2f} MB file...\n".format( (total_size/1024)/1024 ) )
     
     conn.send( str.encode( str(total_size)+"C", "utf-8" ) ) # Send Size of File to Client
     try:
@@ -1284,6 +1280,12 @@ def SendFile(conn,file,chunk_size=20480):
     except Exception as msg:
         print(msg)
         return False
+
+    if not data:
+        print("File is Empty")
+        return False
+
+    print("Sending a {:0.2f} MB file...\n".format( (total_size/1024)/1024 ) )
 
     while data:
         conn.send( data )
