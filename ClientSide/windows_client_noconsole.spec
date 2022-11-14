@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['client_windows.py'],
-             pathex=['/home/chirag/Documents/reverse_shell/ClientSide'],
+             pathex=['D:\Projects\Reverse-Shell\ClientSide\client_windows.py'],
              binaries=[],
              datas=[ ("./_portaudio.cp38-win32.pyd","."), ("./_portaudio.cp39-win_amd64.pyd",".") ],
              hiddenimports=[],

